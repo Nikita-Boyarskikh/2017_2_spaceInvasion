@@ -5,7 +5,7 @@ import Temporary from '../interfaces/temporary';
 import Rect from '../interfaces/rect';
 
 export default class Bomb extends Sprite implements Temporary, Rect {
-  protected readonly target: Base;
+  public readonly target: Base;
   protected readonly damage = BOMB.DAMAGE;
   protected timer: number;
   protected countDownTimer: number;
@@ -25,9 +25,20 @@ export default class Bomb extends Sprite implements Temporary, Rect {
     this.countDownTimer = window.setInterval(this.countDown.bind(this), Math.ceil(BOMB.LIFE_TIME / BOMB.TICKS));
   }
 
+  static copy(bomb: Bomb): Bomb {
+    const newBomb = new Bomb(bomb.id, Base.copy(bomb.target));
+    newBomb.visible = bomb.visible;
+    newBomb.handlers = new Map(bomb.handlers);
+    newBomb.time = bomb.time;
+    newBomb.cancel();
+    newBomb.timer = bomb.timer;
+    newBomb.countDownTimer = bomb.countDownTimer;
+    return newBomb;
+  }
+
   destroy(): void {
-    debugger;
     this.target.damage(this.damage);
+    this.target.underAttack = false;
     this.visible = false;
     this.cancel();
     super.destroy();

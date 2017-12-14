@@ -9,8 +9,11 @@ import Coin from './coin';
 import Rect from '../interfaces/rect';
 import emitter from '../../../modules/emitter';
 import SubscriptableMixin from '../mixins/subscriptableMixin';
+import {subDirs, getBulletCoords} from '../../../utils/utils';
+import Movable from '../interfaces/movable';
+import Oriented from '../interfaces/oriented';
 
-class Unit extends MovableMixin implements SubscriptableMixin, Destructible, Collidable, Shootable, Rect {
+class Unit extends MovableMixin implements SubscriptableMixin, Movable, Oriented, Destructible, Collidable, Shootable, Rect {
   public readonly side: SIDE;
   protected health = UNIT.HEALTH;
   protected _damage = UNIT.DAMAGE;
@@ -28,8 +31,20 @@ class Unit extends MovableMixin implements SubscriptableMixin, Destructible, Col
     this.spawn();
   }
 
-  static getDirectionBySide(side: SIDE): number {
-    return side === SIDE.MAN ? 90 : 270;
+  static getDirectionBySide(side: SIDE): Coords {
+    return side === SIDE.MAN ? new Coords(1, 0) : new Coords(-1, 0);
+  }
+
+  static copy(unit: Unit): Unit {
+    const newUnit = new Unit(unit.id, unit.side);
+    newUnit.coords = Coords.copy(unit.coords);
+    newUnit.visible = unit.visible;
+    newUnit.speed = unit.speed;
+    newUnit.direction = Coords.copy(unit.direction);
+    newUnit.handlers = new Map(unit.handlers);
+    newUnit.health = unit.health;
+    newUnit._damage = unit._damage;
+    return newUnit;
   }
 
   onHisHalf(): boolean {
@@ -45,7 +60,7 @@ class Unit extends MovableMixin implements SubscriptableMixin, Destructible, Col
 
   spawn(): void {
     this.health = UNIT.HEALTH;
-    this.speed = UNIT.SPEED;
+    this.speed = 0;
     this._damage = UNIT.DAMAGE;
     this.direction = Unit.getDirectionBySide(this.side);
     this.visible = true;
@@ -59,7 +74,6 @@ class Unit extends MovableMixin implements SubscriptableMixin, Destructible, Col
     this.health = 0;
     this.speed = 0;
     this._damage = 0;
-    this.direction = null;
     this.visible = false;
     super.destroy();
   }
@@ -67,7 +81,7 @@ class Unit extends MovableMixin implements SubscriptableMixin, Destructible, Col
   bumpInto(obj: Collidable): void {
     if (obj instanceof Bullet) {
       this.damage(obj.getDamage());
-      if (!this.alive()) {
+      if (!this.alive() && this.visible) {
         this.destroy();
       }
     } else if (obj instanceof Coin) {
@@ -77,7 +91,7 @@ class Unit extends MovableMixin implements SubscriptableMixin, Destructible, Col
   }
 
   shout(): void {
-    emitter.emit('Bullet', this.direction, this.coords, this);
+    emitter.emit('Bullet', this.direction, getBulletCoords(this), this);
   }
 
   damage(points: number): void {
@@ -92,27 +106,43 @@ class Unit extends MovableMixin implements SubscriptableMixin, Destructible, Col
     return this.health;
   }
 
-  getDirection(): number|null {
+  getDirection(): Coords {
     return this.direction;
   }
 
-  setDirection(direction: number|null): void {
-    this.direction = direction;
+  setDirection(direction: Coords): void {
+    if (this.speed === 0 && (this.direction.x !== direction.x || this.direction.y !== direction.y)) {
+      this.direction = subDirs(direction, this.direction);
+      this.run();
+    } else if (direction.x !== 0 || direction.y !== 0) {
+      this.direction = direction;
+      this.run();
+    } else {
+      this.stop();
+    }
+  }
+
+  run(): void {
+    this.speed = UNIT.SPEED;
   }
 
   getDamage(): number {
     return this._damage;
   }
 
+  getSpeed(): number {
+    return this.speed;
+  }
+
   private getCoordsBySide(side: SIDE): Coords {
     const coords = new Coords;
-    coords.y = emitter.emit('Strategy.height') / 2 + this.height / 2;
+    coords.y = emitter.emit('Strategy.height') / 2;
     switch (side) {
       case SIDE.MAN:
-        coords.x = emitter.emit('Strategy.width') - UNIT.SPAWN_OFFSET - this.width / 2;
+        coords.x = UNIT.SPAWN_OFFSET + this.width / 2;
         break;
       case SIDE.ALIEN:
-        coords.x = UNIT.SPAWN_OFFSET + this.width / 2;
+        coords.x = emitter.emit('Strategy.width') - UNIT.SPAWN_OFFSET - this.width / 2;
         break;
       default:
         throw Error('Wrong side');

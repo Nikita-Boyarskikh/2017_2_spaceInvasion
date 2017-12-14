@@ -5,6 +5,7 @@ class KeyboardController implements ControllerInterface {
   protected keys = new Map<EVENT, boolean>();
   protected previousKeys = new Map<EVENT, boolean>();
   private handlers = new Map<string, (...args: any[]) => any>();
+  private static nextIgnoreAction: EVENT|null = null;
 
   protected static map(event: KeyboardEvent): EVENT {
     event.preventDefault();
@@ -24,26 +25,27 @@ class KeyboardController implements ControllerInterface {
     document.addEventListener('keyup', bindedKeyUpHandler);
   }
 
-  diff(): Map<EVENT, boolean> {
+  diff(): EVENT[] {
     const pressed = [
       ...Array.from(this.previousKeys.keys()),
       ...Array.from(this.keys.keys())
-    ].filter((key, pos, all) => ~all.indexOf(key, pos + 1))
-      .reduce(
-        (res: Map<EVENT, boolean>, key) => res.set(key, !this.previousKeys.get(key) && !!this.keys.get(key)),
-        new Map()
-      );
+    ].filter((key, pos, all) => !~all.indexOf(key, pos + 1))
+      .filter(key => Boolean(this.previousKeys.get(key)) !== Boolean(this.keys.get(key)));
 
     this.previousKeys = new Map(this.keys);
     return pressed;
   }
 
-  getKeys(): Map<EVENT, boolean> {
+  getEvents(): Map<EVENT, boolean> {
     return this.keys;
   }
 
   is(key: EVENT): boolean {
-    return this.keys.get(key) || false;
+    return Boolean(this.keys.get(key));
+  }
+
+  resetEvent(event: EVENT): void {
+    this.previousKeys.set(event, false);
   }
 
   destroy(): void {

@@ -8,17 +8,18 @@ import Bullet from './bullet';
 import Rect from '../interfaces/rect';
 import Temporary from '../interfaces/temporary';
 import emitter from '../../../modules/emitter';
-import {throwIfNull} from '../../../utils/utils';
+import {getBulletCoords} from '../../../utils/utils';
+import Oriented from '../interfaces/oriented';
 
-class Tower extends Sprite implements Shootable, Collidable, Destructible, Rect, Temporary {
+class Tower extends Sprite implements Shootable, Oriented, Collidable, Destructible, Rect, Temporary {
   public readonly cost = TOWER.COST;
   public readonly side: SIDE;
   protected interval: number;
-  protected direction: number|null;
+  protected direction: Coords;
   protected health = TOWER.HEALTH;
   protected _damage = TOWER.DAMAGE;
 
-  constructor(id: number, coords: Coords, direction: number|null, side: SIDE) {
+  constructor(id: number, coords: Coords, direction: Coords, side: SIDE) {
     super(
       id,
       coords,
@@ -30,11 +31,21 @@ class Tower extends Sprite implements Shootable, Collidable, Destructible, Rect,
     this.handlers = new Map();
     this.side = side;
     this.direction = direction;
-    this.coords = coords;
     this.interval = window.setInterval(this.shout.bind(this), TOWER.SPEED);
 
     // Subscribes
     this.subscribe('Tower.damage.' + this.id, this.damage); // points: number
+  }
+
+  static copy(tower: Tower): Tower {
+    const newTower = new Tower(tower.id, Coords.copy(tower.coords), Coords.copy(tower.direction), tower.side);
+    newTower.handlers = new Map(tower.handlers);
+    newTower.visible = tower.visible;
+    newTower.health = tower.health;
+    newTower._damage = tower._damage;
+    newTower.cancel();
+    newTower.interval = tower.interval;
+    return newTower;
   }
 
   cancel(): void {
@@ -45,7 +56,6 @@ class Tower extends Sprite implements Shootable, Collidable, Destructible, Rect,
     this.cancel();
     this.health = 0;
     this._damage = 0;
-    this.direction = null;
     this.visible = false;
     super.destroy();
   }
@@ -53,18 +63,14 @@ class Tower extends Sprite implements Shootable, Collidable, Destructible, Rect,
   bumpInto(obj: Collidable): void {
     if (obj instanceof Bullet) {
       this.damage(obj.getDamage());
-      if (!this.alive()) {
+      if (!this.alive() && this.visible) {
         this.destroy();
       }
     }
   }
 
   shout(): void {
-    const hypotenuse = Math.sqrt(Math.pow(this.height, 2) + Math.pow(this.width, 2));
-    emitter.emit('Bullet', this.direction, new Coords(
-      hypotenuse * Math.cos(throwIfNull(this.direction)),
-      hypotenuse * Math.sin(throwIfNull(this.direction))
-    ), this);
+    emitter.emit('Bullet', this.direction, getBulletCoords(this), this);
   }
 
   damage(points: number): void {
@@ -79,7 +85,7 @@ class Tower extends Sprite implements Shootable, Collidable, Destructible, Rect,
     return this.health;
   }
 
-  getDirection(): number|null {
+  getDirection(): Coords {
     return this.direction;
   }
 

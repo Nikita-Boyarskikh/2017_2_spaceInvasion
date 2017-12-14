@@ -1,13 +1,11 @@
-import PNotify from '../utils/notifications';
+import {dismissAllMessages, default as PNotify} from '../utils/notifications';
 import User from '../models/user';
 import GameScene from '../models/game/gameScene';
 import {ConstructableController, default as ControllerInterface} from '../modules/game/controllers/controllerInterface';
 import {ConstructableStrategy, default as StrategyInterface} from '../modules/game/strateges/strategyInterface';
-import {SIDE} from '../utils/constants';
+import {EVENT, SIDE} from '../utils/constants';
 import emitter from '../modules/emitter';
 import SubscriptableMixin from '../models/game/mixins/subscriptableMixin';
-import Navigator from '../modules/navigator';
-import LoginBlock from "../blocks/login/index";
 
 class GameService extends SubscriptableMixin {
   private static instance = new GameService();
@@ -32,27 +30,30 @@ class GameService extends SubscriptableMixin {
       this.destroy();
     }
 
-    this.strategy = new strategy(this.onFinishGame.bind(this));
+    this.subscribe('GameService.start', this.start.bind(this));
+    this.strategy = new strategy();
     this.scene = new GameScene(canvas);
     this.controllers = new controller;
     this.running = true;
+  }
 
-    // Subscribes
-    this.subscribe('GameService.onFinishGame', this.onFinishGame); // victory : boolean
+  start(): void {
+    dismissAllMessages();
+    this.bind();
   }
 
   join(user: User, side: SIDE): void {
-    if (this.strategy.join(user, side)) {
-      this.bind();
-    } else {
-      // TODO: Подождите других игроков...
-    }
+    this.strategy.join(user, side);
+    new PNotify({
+      title: 'Пожалуйста, подождите...',
+      type: 'notice',
+      text: 'Подождите, пока другой игрок зайдёт в игру против Вас...',
+    });
   }
 
   gameLoop(): void {
-    const controlsUpdates = Array.from(this.controllers.diff());
-
-    const newCommands = controlsUpdates.filter(el => el[1]).map(el => el[0]);
+    const diff = this.controllers.diff();
+    const newCommands = diff.filter(event => this.controllers.is(event));
     newCommands.forEach(cmd => {
       try {
         emitter.emit('Strategy.onNewCommand', cmd);
@@ -65,26 +66,11 @@ class GameService extends SubscriptableMixin {
       }
     });
 
-    const stopedCommands = controlsUpdates.filter(el => el[1]).map(el => el[0]);
+    const stopedCommands = diff.filter(event => !this.controllers.is(event));
     stopedCommands.forEach(cmd => emitter.emit('Strategy.onStopCommand', cmd));
 
     this.scene.render(this.strategy.getState());
     this.requestID = requestAnimationFrame(this.gameLoop.bind(this));
-  }
-
-  onFinishGame(...data: any[]): void {
-    const victory = data[0] as boolean;
-    this.destroy();
-    Navigator.sections.hide();
-    (Navigator.sections.home as LoginBlock).show(); // TODO: Сверстать homepage
-    new PNotify({
-      title: 'Игра окончена',
-      type: (victory ? 'success' : 'notice'),
-      text: (victory ? 'Вы победили!' : 'Вы проиграли!'),
-      buttons: {
-        sticker: false,
-      },
-    });
   }
 
   isRunning(): boolean {
@@ -92,11 +78,8 @@ class GameService extends SubscriptableMixin {
   }
 
   unbind(): void {
-    if (this.requestID) {
-      cancelAnimationFrame(this.requestID);
-    }
-
     if (this.binded) {
+      cancelAnimationFrame(this.requestID);
       this.scene.unbind();
       this.controllers.destroy();
       this.binded = false;
@@ -104,9 +87,9 @@ class GameService extends SubscriptableMixin {
   }
 
   bind(): void {
-    this.requestID = requestAnimationFrame(this.gameLoop.bind(this));
-
     if (!this.binded) {
+      this.requestID = requestAnimationFrame(this.gameLoop.bind(this));
+
       this.scene.bind();
       this.controllers.init();
       this.binded = true;
@@ -119,6 +102,10 @@ class GameService extends SubscriptableMixin {
     this.strategy.destroy();
     this.controllers.destroy();
     this.scene.destroy();
+  }
+
+  undoAction(action: EVENT): void {
+    this.controllers.resetEvent(action);
   }
 }
 

@@ -5,35 +5,44 @@ import Coin from './sprites/coin';
 import Player from './player';
 import Base from './sprites/base';
 import Bomb from './sprites/bomb';
-import SubscriptableMixin from './mixins/subscriptableMixin';
-import Coords from './coords';
-import {SIDE, TOWER} from '../../utils/constants';
-import Shootable from './interfaces/shootable';
+import Sprite from './sprites/sprite';
+import User from '../user';
+import Collidable from './interfaces/collidable';
 
-class GameState extends SubscriptableMixin {
-  public players: Player[];
-  public bases: Base[];
-  public units: Unit[];
-  public towers: Tower[];
-  public coins: Coin[];
-  public bullets: Bullet[];
-  public bombs: Bomb[];
+class GameState {
+  public players: Player[] = [];
+  public users: User[] = [];
+  public bases: Base[] = [];
+  public units: Unit[] = [];
+  public towers: Tower[] = [];
+  public coins: Coin[] = [];
+  public bullets: Bullet[] = [];
+  public bombs: Bomb[] = [];
 
-  constructor() {
-    super();
+  static copy(state: GameState): GameState {
+    const newState = new GameState();
+    newState.users = state.users.map(u => User.copy(u));
+    newState.players = state.players.map(p => Player.copy(p));
+    newState.bases = state.bases.map(b => Base.copy(b));
+    newState.units = state.units.map(u => Unit.copy(u));
+    newState.towers = state.towers.map(t => Tower.copy(t));
+    newState.coins = state.coins.map(c => Coin.copy(c));
+    newState.bullets = state.bullets.map(b => Bullet.copy(b));
+    newState.bombs = state.bombs.map(b => Bomb.copy(b));
+    return newState;
+  }
 
-    this.players = [];
-    this.bases = [];
-    this.units = [];
-    this.towers = [];
-    this.coins = [];
-    this.bullets = [];
-    this.bombs = [];
-
-    // Subscribes
-    this.subscribe('Bullet', this.newBullet); // direction: number|null, coords: Coords, source: Shootable
-    this.subscribe('Tower', this.setTower); // coords: Coords, direction: number|null, side: SIDE
-    this.subscribe('Tower.random', this.setRandomTower); // --No arguments--
+  findEntitiesByID(ID: number): Collidable&Sprite|null {
+    return ([
+      this.bases,
+      this.units,
+      this.towers,
+      this.coins,
+      this.bullets,
+    ] as (Collidable&Sprite)[][])
+      .map(sprites => sprites.filter(s => s.id === ID))
+      .filter(sprites => sprites.length > 0)
+      .map(sprites => sprites[0])[0] || null;
   }
 
   destroy(): void {
@@ -44,39 +53,6 @@ class GameState extends SubscriptableMixin {
     this.coins.forEach(c => c.destroy());
     this.bullets.forEach(b => b.destroy());
     this.bombs.forEach(b => b.destroy());
-  }
-
-  protected newBullet(...data: any[]): void {
-    const direction = data[0] as number|null;
-    const coords = data[1] as Coords;
-    const source = data[2] as Shootable;
-
-    this.bullets.push(new Bullet(this.bullets.length, direction, coords, source));
-  }
-
-  protected setTower(...data: any[]): void {
-    const coords = data[0] as Coords;
-    const direction = data[1] as number|null;
-    const side = data[2] as SIDE;
-    this.towers.push(
-      new Tower(
-        this.towers.length, coords, direction, side
-      )
-    );
-  }
-
-  protected setRandomTower(...data: any[]): void {
-    this.towers.push(
-      new Tower(
-        this.towers.length,
-        new Coords(
-          130,
-          Math.random() * -TOWER.HEALTH / 2
-        ),
-        90,
-        SIDE.ALIEN
-      )
-    );
   }
 }
 
