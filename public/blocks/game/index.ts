@@ -35,6 +35,11 @@ abstract class GameBlock extends Block {
     super.show();
   }
 
+  hide(): void {
+    gameService.unbind();
+    super.hide();
+  }
+
   protected abstract init(): void;
 }
 
