@@ -6,6 +6,7 @@ import {initThemes} from './modules/themes';
 import Navigator from './modules/navigator';
 import navbarTemplate from './templates/navbar.pug';
 import initLocalization from './utils/localisation';
+import registerServiceWorker from './services/serviceWorker';
 
 const navbar = document.createElement('div');
 navbar.innerHTML = navbarTemplate();
@@ -28,7 +29,7 @@ app
   .append(Navigator.sections.winlose);
 
 initThemes();
-// registerServiceWorker();
+registerServiceWorker();
 router.start();
 initLocalization();
 userService.fetch();
